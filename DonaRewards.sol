@@ -33,13 +33,21 @@ contract DonaRewards {
     uint256 public milestoneMultipler;
     bool public isWithdrawEnabled;
     address public donaRewardsContractAddress = address(this);
+    address payable public charityAddress;
     mapping(address => Contributor) public contributorsDB;
     uint256[] public donationBracket = [10, 50, 100, 500, 1000, 5000, 10000, 50000];
 
-    constructor(address _rewardsContract, uint256 _goal, uint256 _milestone, uint256 _milestoneMultipler) public {
+    event logDonations(address _contributor, uint256 _donationAmount);
+    event logContributorAdded(address _contributor);
+    event logContributorRemoved(address _contributor);
+    event logWithdrawel(address _contributor, uint256 _tokenAmount);
+
+    constructor(address _rewardsContract,address payable _charityAddress,
+    uint256 _goal, uint256 _milestone, uint256 _milestoneMultipler) public {
         require(_goal > 0, "goal amount must be greater then 0");
         require(_milestone > 0 && _milestone < _goal, "milestone amount must greater the 0 and less then goal amount");
         rewardsContract = rewardInterface(_rewardsContract);
+        charityAddress = _charityAddress;
         if(!rewardsContract.isMinter(donaRewardsContractAddress)) {
             rewardsContract.addMinters(donaRewardsContractAddress);
         }
@@ -60,11 +68,13 @@ contract DonaRewards {
     function addContributor(address _contributor) public {
         require(!contributorsDB[msg.sender].isContributor, "contributor already added");
         contributorsDB[_contributor].isContributor = true;
+        emit logContributorAdded(msg.sender);
     }
 
     function removeContributor(address _contributor) public {
         require(contributorsDB[_contributor].isContributor, "contributor already removed");
         contributorsDB[_contributor].isContributor = false;
+        emit logContributorRemoved(msg.sender);
     }
 
     function donate() public isAuthorized payable {
@@ -75,14 +85,16 @@ contract DonaRewards {
             contributorsDB[msg.sender].currentPercentageAmount += msg.value.mul(10).div(currentMilestone.sub(prevMilestone));
         } else {
             if(contributorsDB[msg.sender].currentPercentageAmount == 0) {
+                contributorsDB[msg.sender].currentPercentageAmount += msg.value.mul(10).div(currentMilestone.sub(prevMilestone));
                 contributorsDB[msg.sender].prevPercentageAmount += msg.value.mul(10).div(currentMilestone.sub(prevMilestone));
-                contributorsDB[msg.sender].currentPercentageAmount += msg.value.mul(10).div(currentMilestone.sub(prevMilestone));
             } else if(donaRewardsContractAddress.balance >= currentMilestone) {
-                contributorsDB[msg.sender].prevPercentageAmount += msg.value.sub(donaRewardsContractAddress.balance.sub(currentMilestone)).mul(10).div(currentMilestone.sub(prevMilestone));
-                contributorsDB[msg.sender].currentPercentageAmount = donaRewardsContractAddress.balance.sub(currentMilestone).mul(10).div(currentMilestone.sub(prevMilestone));
+                contributorsDB[msg.sender].currentPercentageAmount = donaRewardsContractAddress.balance.sub(currentMilestone)
+                .mul(10).div(currentMilestone.sub(prevMilestone));
+                contributorsDB[msg.sender].prevPercentageAmount += msg.value.sub(donaRewardsContractAddress.balance.sub(currentMilestone))
+                .mul(10).div(currentMilestone.sub(prevMilestone));
             } else {
-                contributorsDB[msg.sender].prevPercentageAmount = contributorsDB[msg.sender].currentPercentageAmount;
                 contributorsDB[msg.sender].currentPercentageAmount += msg.value.mul(10).div(currentMilestone.sub(prevMilestone));
+                contributorsDB[msg.sender].prevPercentageAmount = contributorsDB[msg.sender].currentPercentageAmount;
             }
         }
         if(donaRewardsContractAddress.balance >= currentMilestone) {
@@ -100,14 +112,11 @@ contract DonaRewards {
                 currentMilestone = goal;
             }
         }
-    }
+        emit logDonations(msg.sender, msg.value);
+        if(donaRewardsContractAddress.balance == goal) {
+            charityAddress.transfer(donaRewardsContractAddress.balance);
+        }
 
-    function totalSupply() public view returns(uint256) {
-        return rewardsContract.totalSupply();
-    }
-
-    function balanceOf(address _account) public view returns(uint256) {
-        return rewardsContract.balanceOf(_account);
     }
 
     function withdraw() public isAuthorized {
@@ -117,9 +126,10 @@ contract DonaRewards {
         contributorsDB[msg.sender].prevPercentageAmount = contributorsDB[msg.sender].currentPercentageAmount
         .sub(contributorsDB[msg.sender].prevPercentageAmount);
         contributorsDB[msg.sender].currentPercentageAmount = contributorsDB[msg.sender].prevPercentageAmount;
-        if(balanceOf(donaRewardsContractAddress) == 0) {
+        if(rewardsContract.balanceOf(donaRewardsContractAddress) == 0) {
             isWithdrawEnabled = false;
         }
+        emit logWithdrawel(msg.sender, amount);
     }
 
     function calculateRewards() private returns(uint256) {
