@@ -81,19 +81,14 @@ contract DonaRewards {
         require(checkDonation(msg.value), "donation amount does not match any donation brackets");
         require(donaRewardsContractAddress.balance <= goal, "goal amount has been reached/contract balance cannot exceed goal amount");
         contributorsDB[msg.sender].donationAmount += msg.value;
-        if(isWithdrawEnabled) {
+         if(isWithdrawEnabled) {
             contributorsDB[msg.sender].currentPercentageAmount += msg.value.mul(10).div(currentMilestone.sub(prevMilestone));
         } else {
-            if(contributorsDB[msg.sender].currentPercentageAmount == 0) {
-                contributorsDB[msg.sender].currentPercentageAmount += msg.value.mul(10).div(currentMilestone.sub(prevMilestone));
-                contributorsDB[msg.sender].prevPercentageAmount += msg.value.mul(10).div(currentMilestone.sub(prevMilestone));
-            } else if(donaRewardsContractAddress.balance >= currentMilestone) {
-                contributorsDB[msg.sender].currentPercentageAmount = donaRewardsContractAddress.balance.sub(currentMilestone)
-                .mul(10).div(currentMilestone.sub(prevMilestone));
+            contributorsDB[msg.sender].currentPercentageAmount += msg.value.mul(10).div(currentMilestone.sub(prevMilestone));
+            if(donaRewardsContractAddress.balance >= currentMilestone) {
                 contributorsDB[msg.sender].prevPercentageAmount += msg.value.sub(donaRewardsContractAddress.balance.sub(currentMilestone))
                 .mul(10).div(currentMilestone.sub(prevMilestone));
             } else {
-                contributorsDB[msg.sender].currentPercentageAmount += msg.value.mul(10).div(currentMilestone.sub(prevMilestone));
                 contributorsDB[msg.sender].prevPercentageAmount = contributorsDB[msg.sender].currentPercentageAmount;
             }
         }
