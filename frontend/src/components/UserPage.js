@@ -11,11 +11,25 @@ import {
   FormControl,
   FormLabel,
   Grid,
+  List,
+  ListItem,
+  ListItemText,
+  Typography,
 } from '@material-ui/core'
-import { makeStyles } from '@material-ui/core/styles'
+import { makeStyles, withStyles } from '@material-ui/core/styles'
+import { blue, green, purple } from '@material-ui/core/colors'
 import { ethers } from 'ethers'
 import PropTypes from 'prop-types'
+import 'semantic-ui-css/semantic.min.css'
+import { Progress } from 'semantic-ui-react'
 import { donate, withdraw } from '../contractFunctions'
+import {
+  setContributorInfo,
+  setBalance,
+  setPrevMilestone,
+  setCurrentMilestone,
+  setIsWithdrawEnabled,
+} from '../actions'
 
 const useStyles = makeStyles(theme => ({
   '@global': {
@@ -24,7 +38,7 @@ const useStyles = makeStyles(theme => ({
     },
   },
   paper: {
-    marginTop: theme.spacing(8),
+    marginTop: theme.spacing(4),
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
@@ -34,7 +48,7 @@ const useStyles = makeStyles(theme => ({
     marginTop: theme.spacing(1),
   },
   button: {
-    margin: theme.spacing(3, 0, 2),
+    margin: theme.spacing(1, 2, 1),
   },
   formControl: {
     margin: theme.spacing(3),
@@ -42,16 +56,83 @@ const useStyles = makeStyles(theme => ({
   group: {
     margin: theme.spacing(1, 0),
   },
+  title: {
+    margin: theme.spacing(1, 0, 1),
+  },
+  submit: {
+    margin: theme.spacing(1, 0, 1),
+  },
+  gridUser: {
+    color: theme.palette.getContrastText(blue[400]),
+    backgroundColor: blue[400],
+  },
+  gridCampaign: {
+    color: theme.palette.getContrastText(green[500]),
+    backgroundColor: green[500],
+  },
 }))
+
+const PurpleButton = withStyles(theme => ({
+  root: {
+    color: theme.palette.getContrastText(purple[500]),
+    backgroundColor: purple[500],
+    '&:hover': {
+      backgroundColor: purple[700],
+    },
+  },
+}))(Button)
+
+const GreenButton = withStyles(theme => ({
+  root: {
+    color: theme.palette.getContrastText(green[600]),
+    backgroundColor: green[600],
+    '&:hover': {
+      backgroundColor: green[800],
+    },
+  },
+}))(Button)
 
 function UserPage(props) {
   const classes = useStyles()
-  const { donationBracket, contract } = props
+
+  const {
+    walletAddress,
+    charityAddress,
+    donationBracket,
+    contract,
+    contributorInfo,
+    provider,
+    balance,
+    goal,
+    currentMilestone,
+    prevMilestone,
+    milestoneArray,
+    isWithdrawEnabled,
+    dispatch,
+  } = props
+
   const [values, setValues] = React.useState({
     showDonateOptions: false,
     donationAmount: 10,
-    isWithdrawEnabled: false,
   })
+
+  function getIndex() {
+    for (let i = 0; i < milestoneArray.length; i += 1) {
+      if (milestoneArray[i] === currentMilestone) {
+        return i
+      }
+    }
+    return -1
+  }
+
+  function getMilstoneDifference() {
+    const index = getIndex()
+    let difference = 0
+    if (index !== -1) {
+      difference = milestoneArray[index] - milestoneArray[index - 1]
+    }
+    return difference
+  }
 
   function handleChange(event, value) {
     setValues({ ...values, [event.target.name]: value })
@@ -62,49 +143,185 @@ function UserPage(props) {
     if (event.currentTarget.name === 'Donate') {
       setValues({ ...values, showDonateOptions: true })
     }
+    if (event.currentTarget.name === 'Withdraw') {
+      await withdraw(contract)
+      const newContributorInfo = await contract.contributorsDB(walletAddress)
+      dispatch(setContributorInfo(newContributorInfo))
+      const checkIsWithdrawEnabled = await contract.isWithdrawEnabled()
+      if (checkIsWithdrawEnabled !== isWithdrawEnabled) {
+        dispatch(setIsWithdrawEnabled(checkIsWithdrawEnabled))
+      }
+    }
   }
 
   async function handleSubmit(event) {
     event.preventDefault()
     const { donationAmount } = values
     if (values.showDonateOptions) {
+      setValues({
+        ...values,
+        showDonateOptions: false,
+      })
       await donate(
         ethers.utils.parseUnits(donationAmount.toString(), 'wei'),
         contract
       )
-      const isWithdrawEnabled = await contract.isWithdrawEnabled()
-      setValues({ ...values, showDonateOptions: false, isWithdrawEnabled })
-    }
-    if (event.currentTarget.name === 'Withdraw') {
-      await withdraw(contract)
+      const newContributorInfo = await contract.contributorsDB(walletAddress)
+      const newBalance = Number(await provider.getBalance(contract.address))
+      if (newBalance >= currentMilestone) {
+        dispatch(setPrevMilestone(currentMilestone))
+        if (currentMilestone < goal) {
+          dispatch(setCurrentMilestone(milestoneArray[getIndex() + 1]))
+        } else {
+          dispatch(setCurrentMilestone(goal))
+        }
+      }
+      const checkIsWithdrawEnabled = await contract.isWithdrawEnabled()
+      if (checkIsWithdrawEnabled !== isWithdrawEnabled) {
+        dispatch(setIsWithdrawEnabled(checkIsWithdrawEnabled))
+      }
+      dispatch(setContributorInfo(newContributorInfo))
+      dispatch(setBalance(newBalance))
     }
   }
 
   return (
-    <Container component="main" maxWidth="xs">
+    <Container component="main" maxWidth="md">
       <CssBaseline />
       <div className={classes.paper}>
+        <Grid
+          className={classes.group}
+          container
+          spacing={8}
+          justify="space-evenly"
+        >
+          <Grid className={classes.gridUser} item xs={10} sm={5}>
+            <Typography variant="h5" className={classes.title}>
+              User details
+            </Typography>
+            <List>
+              <ListItem>
+                <ListItemText
+                  primary={
+                    <Typography variant="h6">contributer address</Typography>
+                  }
+                  secondary={
+                    <Typography variant="subtitle2">{walletAddress}</Typography>
+                  }
+                />
+              </ListItem>
+              <ListItem>
+                <ListItemText
+                  primary={
+                    <Typography variant="h6">donation amount</Typography>
+                  }
+                  secondary={
+                    <Typography variant="subtitle2">{`${String(
+                      contributorInfo.donationAmount
+                    )} WEI`}</Typography>
+                  }
+                />
+              </ListItem>
+              <ListItem>
+                <ListItemText
+                  primary={<Typography variant="h6">token amount</Typography>}
+                  secondary={
+                    <Typography variant="subtitle2">{`${String(
+                      contributorInfo.tokenAmount
+                    )} DOR`}</Typography>
+                  }
+                />
+              </ListItem>
+            </List>
+            <Progress
+              value={contributorInfo.donationAmount - prevMilestone}
+              total={getMilstoneDifference()}
+              progress="percent"
+              size="medium"
+              label="user donation percentage to current milestone"
+            />
+          </Grid>
+          <Grid className={classes.gridCampaign} item xs={10} sm={5}>
+            <Typography variant="h5" className={classes.title}>
+              Campaign details
+            </Typography>
+            <List>
+              <ListItem>
+                <ListItemText
+                  primary={
+                    <Typography variant="h6">charity address</Typography>
+                  }
+                  secondary={
+                    <Typography variant="subtitle2">
+                      {charityAddress}
+                    </Typography>
+                  }
+                />
+              </ListItem>
+              <ListItem>
+                <ListItemText
+                  primary={<Typography variant="h6">charity goal</Typography>}
+                  secondary={
+                    <Typography variant="subtitle2">{`${String(
+                      goal
+                    )} WEI`}</Typography>
+                  }
+                />
+              </ListItem>
+              <Progress
+                value={balance}
+                total={goal}
+                progress="value"
+                size="medium"
+                label="overall donation amount to goal"
+              />
+              <ListItem>
+                <ListItemText
+                  primary={
+                    <Typography variant="h6">current milestone</Typography>
+                  }
+                  secondary={
+                    <Typography variant="subtitle2">{`${String(
+                      currentMilestone
+                    )} WEI`}</Typography>
+                  }
+                />
+              </ListItem>
+            </List>
+            <Progress
+              value={balance - prevMilestone}
+              total={getMilstoneDifference()}
+              progress="percent"
+              size="medium"
+              label="overall donation percentage to current milestone"
+            />
+          </Grid>
+        </Grid>
         <form className={classes.form} noValidate onSubmit={handleSubmit}>
           <ButtonGroup
             fullWidth
             variant="contained"
             color="primary"
-            className={classes.button}
+            className={classes.group}
             aria-label="full-width contained primary button group"
           >
-            <Button type="button" name="Donate" onClick={handleClick}>
+            <Button
+              type="button"
+              name="Donate"
+              className={classes.button}
+              onClick={handleClick}
+            >
               Donate
             </Button>
-            <Button
-              disabled={!values.isWithdrawEnabled}
-              type="submit"
+            <GreenButton
+              disabled={!isWithdrawEnabled}
+              type="button"
               name="Withdraw"
-              variant="contained"
-              color="secondary"
-              className={classes.submit}
+              className={classes.button}
+              onClick={handleClick}
             >
               Withdraw
-            </Button>
+            </GreenButton>
           </ButtonGroup>
           {values.showDonateOptions && (
             <div>
@@ -123,22 +340,20 @@ function UserPage(props) {
                         key={index}
                         value={choices}
                         control={<Radio />}
-                        label={choices}
+                        label={`${choices} WEI`}
                       />
                     ))}{' '}
                   </Grid>
                 </RadioGroup>
               </FormControl>
-
-              <Button
+              <PurpleButton
                 type="submit"
                 fullWidth
                 variant="contained"
-                color="secondary"
                 className={classes.submit}
               >
                 Submit donation Options
-              </Button>
+              </PurpleButton>
             </div>
           )}
         </form>
@@ -148,16 +363,49 @@ function UserPage(props) {
 }
 
 UserPage.propTypes = {
+  walletAddress: PropTypes.string.isRequired,
+  charityAddress: PropTypes.string.isRequired,
   donationBracket: PropTypes.array.isRequired,
   contract: PropTypes.any.isRequired,
+  contributorInfo: PropTypes.any.isRequired,
+  provider: PropTypes.any.isRequired,
+  balance: PropTypes.number.isRequired,
+  goal: PropTypes.number.isRequired,
+  currentMilestone: PropTypes.number.isRequired,
+  prevMilestone: PropTypes.number.isRequired,
+  milestoneArray: PropTypes.array.isRequired,
+  isWithdrawEnabled: PropTypes.bool.isRequired,
+  dispatch: PropTypes.func.isRequired,
 }
 
 const mapStateToProps = state => {
-  const { contract, walletAddress, donationBracket } = state.user
+  const {
+    contract,
+    walletAddress,
+    charityAddress,
+    donationBracket,
+    contributorInfo,
+    provider,
+    balance,
+    goal,
+    currentMilestone,
+    prevMilestone,
+    milestoneArray,
+    isWithdrawEnabled,
+  } = state.user
   return {
     contract,
     walletAddress,
+    charityAddress,
     donationBracket,
+    contributorInfo,
+    provider,
+    balance,
+    goal,
+    currentMilestone,
+    prevMilestone,
+    milestoneArray,
+    isWithdrawEnabled,
   }
 }
 

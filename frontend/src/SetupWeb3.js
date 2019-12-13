@@ -4,9 +4,8 @@ import contractInfo from './contracts/donaReward'
 export const SetupWeb3 = async () => {
   if (window.ethereum) {
     try {
-      if (typeof window.ethereum.selectedAddress === 'undefined') {
-        await window.ethereum.enable()
-      }
+      window.ethereum.autoRefreshOnNetworkChange = false
+      await window.ethereum.enable()
       const provider = new ethers.providers.Web3Provider(window.ethereum)
       const signer = provider.getSigner()
       const contract = new ethers.Contract(
