@@ -1,8 +1,8 @@
 # Description 
 
-An application for rewarding contributors with reward tokens. The App will be used to help fund charities through the native cryptocurrncy of the the ethereum network. The will give you DonaRewards (DOR) tokens which can later be used to redeem for products, discounts, or perks.
+An application for rewarding contributors with reward tokens. The App will be used to help fund charities through the native cryptocurrncy of the the ethereum network. The App will give you DonaRewards (DOR) tokens which can later be used to redeem for products, discounts, or perks.
 
-Note: the version uses the smallist unit of ETH known as WEI as part of testing, a later will switch using the ETH unit.
+Note: the version uses the smallist unit of ETH known as WEI as part of testing, a later version will switch to using the ETH unit.
 
 # Contract
 
