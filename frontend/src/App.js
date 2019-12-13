@@ -1,6 +1,7 @@
 import React from 'react'
 import { connect } from 'react-redux'
 import PropTypes from 'prop-types'
+import { SnackbarProvider } from 'notistack'
 import {
   setWalletAddress,
   setLoading,
@@ -46,7 +47,7 @@ class App extends React.Component {
     }
     milestoneArray.push(goal)
     if (!contributorInfo.isContributor) {
-      addContributor(res.account, res.contract)
+      await addContributor(res.account, res.contract)
     }
     dispatch(setWalletAddress(res.account))
     dispatch(setContract(res.contract))
@@ -67,9 +68,11 @@ class App extends React.Component {
     const { hasErrored, message } = this.state
     return (
       <div>
-        {isLoading && <Spiner></Spiner>}
-        {!isLoading && hasErrored && <h3>{message}</h3>}
-        {!isLoading && !hasErrored && <UserPage />}
+        <SnackbarProvider maxSnack={3}>
+          {isLoading && <Spiner></Spiner>}
+          {!isLoading && hasErrored && <h3>{message}</h3>}
+          {!isLoading && !hasErrored && <UserPage />}
+        </SnackbarProvider>
       </div>
     )
   }

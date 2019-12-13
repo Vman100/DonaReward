@@ -22,6 +22,7 @@ import { ethers } from 'ethers'
 import PropTypes from 'prop-types'
 import 'semantic-ui-css/semantic.min.css'
 import { Progress } from 'semantic-ui-react'
+import { useSnackbar } from 'notistack'
 import { donate, withdraw } from '../contractFunctions'
 import {
   setContributorInfo,
@@ -94,6 +95,7 @@ const GreenButton = withStyles(theme => ({
 
 function UserPage(props) {
   const classes = useStyles()
+  const { enqueueSnackbar } = useSnackbar()
 
   const {
     walletAddress,
@@ -153,12 +155,17 @@ function UserPage(props) {
       setValues({ ...values, showDonateOptions: true })
     }
     if (event.currentTarget.name === 'Withdraw') {
-      await withdraw(contract)
-      const newContributorInfo = await contract.contributorsDB(walletAddress)
-      dispatch(setContributorInfo(newContributorInfo))
-      const checkIsWithdrawEnabled = await contract.isWithdrawEnabled()
-      if (checkIsWithdrawEnabled !== isWithdrawEnabled) {
-        dispatch(setIsWithdrawEnabled(checkIsWithdrawEnabled))
+      const result = await withdraw(contract)
+      if (!result.hasErrored) {
+        enqueueSnackbar('withdraw successful', { variant: 'success' })
+        const newContributorInfo = await contract.contributorsDB(walletAddress)
+        dispatch(setContributorInfo(newContributorInfo))
+        const checkIsWithdrawEnabled = await contract.isWithdrawEnabled()
+        if (checkIsWithdrawEnabled !== isWithdrawEnabled) {
+          dispatch(setIsWithdrawEnabled(checkIsWithdrawEnabled))
+        }
+      } else {
+        enqueueSnackbar('withdraw failed', { variant: 'error' })
       }
     }
   }
@@ -171,26 +178,36 @@ function UserPage(props) {
         ...values,
         showDonateOptions: false,
       })
-      await donate(
+      const result = await donate(
         ethers.utils.parseUnits(donationAmount.toString(), 'wei'),
         contract
       )
-      const newContributorInfo = await contract.contributorsDB(walletAddress)
-      const newBalance = Number(await provider.getBalance(contract.address))
-      if (newBalance >= currentMilestone) {
-        dispatch(setPrevMilestone(currentMilestone))
-        if (currentMilestone < goal) {
-          dispatch(setCurrentMilestone(milestoneArray[getIndex() + 1]))
-        } else {
-          dispatch(setCurrentMilestone(goal))
+      if (!result.hasErrored) {
+        enqueueSnackbar(
+          `successfully donated ${donationAmount}, please wait while page reloads`,
+          {
+            variant: 'success',
+          }
+        )
+        const newContributorInfo = await contract.contributorsDB(walletAddress)
+        const newBalance = Number(await provider.getBalance(contract.address))
+        if (newBalance >= currentMilestone) {
+          dispatch(setPrevMilestone(currentMilestone))
+          if (currentMilestone < goal) {
+            dispatch(setCurrentMilestone(milestoneArray[getIndex() + 1]))
+          } else {
+            dispatch(setCurrentMilestone(goal))
+          }
         }
+        const checkIsWithdrawEnabled = await contract.isWithdrawEnabled()
+        if (checkIsWithdrawEnabled !== isWithdrawEnabled) {
+          dispatch(setIsWithdrawEnabled(checkIsWithdrawEnabled))
+        }
+        dispatch(setContributorInfo(newContributorInfo))
+        dispatch(setBalance(newBalance))
+      } else {
+        enqueueSnackbar('donation amount is too big', { variant: 'error' })
       }
-      const checkIsWithdrawEnabled = await contract.isWithdrawEnabled()
-      if (checkIsWithdrawEnabled !== isWithdrawEnabled) {
-        dispatch(setIsWithdrawEnabled(checkIsWithdrawEnabled))
-      }
-      dispatch(setContributorInfo(newContributorInfo))
-      dispatch(setBalance(newBalance))
     }
   }
 

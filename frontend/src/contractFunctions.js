@@ -3,9 +3,9 @@ export const addContributor = async (contributorAddress, contract) => {
     const tx = await contract.addContributor(contributorAddress)
     const receipt = await tx.wait(2)
     const log = receipt.events.pop().args
-    return log
+    return { log, hasErrored: false }
   } catch (error) {
-    return error
+    return { error, hasErrored: true }
   }
 }
 
@@ -14,9 +14,9 @@ export const removeContributor = async (contributorAddress, contract) => {
     const tx = await contract.removeContributor(contributorAddress)
     const receipt = await tx.wait(2)
     const log = receipt.events.pop().args
-    return log
+    return { log, hasErrored: false }
   } catch (error) {
-    return error
+    return { error, hasErrored: true }
   }
 }
 
@@ -25,9 +25,9 @@ export const donate = async (donationAmount, contract) => {
     const tx = await contract.donate({ value: donationAmount })
     const receipt = await tx.wait(2)
     const log = receipt.events.pop().args
-    return log
+    return { log, hasErrored: false }
   } catch (error) {
-    return error
+    return { error, hasErrored: true }
   }
 }
 
@@ -36,8 +36,8 @@ export const withdraw = async contract => {
     const tx = await contract.withdraw()
     const receipt = await tx.wait(2)
     const log = receipt.events.pop().args
-    return log
+    return { log, hasErrored: false }
   } catch (error) {
-    return error
+    return { error, hasErrored: true }
   }
 }
