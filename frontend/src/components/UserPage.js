@@ -134,6 +134,15 @@ function UserPage(props) {
     return difference
   }
 
+  function getUserPercentAmount() {
+    const difference =
+      Number(contributorInfo.currentPercentageAmount) -
+      Number(contributorInfo.prevPercentageAmount)
+    return difference === 0
+      ? Number(contributorInfo.prevPercentageAmount)
+      : difference
+  }
+
   function handleChange(event, value) {
     setValues({ ...values, [event.target.name]: value })
   }
@@ -234,7 +243,7 @@ function UserPage(props) {
               </ListItem>
             </List>
             <Progress
-              value={contributorInfo.donationAmount - prevMilestone}
+              value={getUserPercentAmount() * 10}
               total={getMilstoneDifference()}
               progress="percent"
               size="medium"
